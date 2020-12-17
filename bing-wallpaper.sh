@@ -46,6 +46,8 @@ transform_urls() {
 # Defaults
 PICTURE_DIR="$HOME/Pictures/bing-wallpapers/"
 RESOLUTION="1920x1080"
+PAGE_SIZE=8
+MAX_BOOST=16
 
 # Option parsing
 while [[ $# -gt 0 ]]; do
@@ -112,12 +114,19 @@ read -ra urls < <(curl -sL $PROTO://www.bing.com | \
     transform_urls)
 
 if [ -n "$BOOST" ]; then
-    # Skip idx=0, we've just retrieved that URL above
-    read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$BOOST&idx=1" | \
-        grep -Eo "url\":\".*?\"" | \
-        sed -e "s/url\":\"\([^\"]*\).*/$PROTO:\/\/bing.com\1/" | \
-        transform_urls)
-    urls=( "${urls[@]}" "${archiveUrls[@]}" )
+    BOOST=$((BOOST > MAX_BOOST ? MAX_BOOST : BOOST))
+    IDX=1 # IDX=0 returns URLs starting at the one we've just retrieved above
+    while [ $BOOST -gt 0 ]
+    do
+        FETCH=$((BOOST<PAGE_SIZE ? BOOST : PAGE_SIZE))
+        read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$FETCH&idx=$IDX" | \
+            grep -Eo "url\":\".*?\"" | \
+            sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
+            transform_urls)
+        urls=( "${urls[@]}" "${archiveUrls[@]}" )
+        BOOST=$(($BOOST - $PAGE_SIZE))
+        IDX=$((IDX+PAGE_SIZE))
+    done
 fi
 
 for p in "${urls[@]}"; do
