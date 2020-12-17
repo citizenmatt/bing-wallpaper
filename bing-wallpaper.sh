@@ -114,7 +114,10 @@ read -ra urls < <(curl -sL $PROTO://www.bing.com | \
     transform_urls)
 
 if [ -n "$BOOST" ]; then
-    BOOST=$((BOOST > MAX_BOOST ? MAX_BOOST : BOOST))
+    if [ $BOOST -gt $MAX_BOOST ]; then
+        echo "Fetching max of $MAX_BOOST items..."
+        BOOST=$MAX_BOOST
+    fi
     IDX=1 # IDX=0 returns URLs starting at the one we've just retrieved above
     while [ $BOOST -gt 0 ]
     do
