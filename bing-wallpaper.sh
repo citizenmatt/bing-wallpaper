@@ -18,6 +18,7 @@ Options:
   -s --ssl                       Communicate with bing.com over SSL.
   -b --boost <n>                 Use boost mode. Try to fetch latest <n> pictures.
   -q --quiet                     Do not display log messages.
+  -m --market <market name>      Name of the market to retrieve image for. Defaults to none.
   -n --filename <file name>      The name of the downloaded picture. Defaults to
                                  the upstream name.
   -p --picturedir <picture dir>  The full path to the picture download dir.
@@ -56,6 +57,10 @@ while [[ $# -gt 0 ]]; do
     case $key in
         -r|--resolution)
             RESOLUTION="$2"
+            shift
+            ;;
+        -m|--market)
+            MARKET="$2"
             shift
             ;;
         -p|--picturedir)
@@ -107,7 +112,11 @@ done
 mkdir -p "${PICTURE_DIR}"
 
 # Parse bing.com and acquire picture URL(s)
-read -ra urls < <(curl -sL $PROTO://www.bing.com | \
+if [ ! -z "$MARKET" ]; then
+    MKT_PARAM="?mkt=$MARKET"
+fi
+
+read -ra urls < <(curl -sL $PROTO://www.bing.com/$MKT_PARAM | \
     grep -Eo "url\(/th.*?\)" | \
     uniq | \
     sed -e "s/url(\([^']*\)).*/$PROTO:\/\/bing.com\1/" | \
@@ -119,10 +128,13 @@ if [ -n "$BOOST" ]; then
         BOOST=$MAX_BOOST
     fi
     IDX=1 # IDX=0 returns URLs starting at the one we've just retrieved above
+    if [ ! -z "$MARKET" ]; then
+        MKT_PARAM="&mkt=$MARKET"
+    fi
     while [ $BOOST -gt 0 ]
     do
         FETCH=$((BOOST<PAGE_SIZE ? BOOST : PAGE_SIZE))
-        read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$FETCH&idx=$IDX" | \
+        read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$FETCH&idx=$IDX$MKT_PARAM" | \
             grep -Eo "url\":\".*?\"" | \
             sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
             transform_urls)
