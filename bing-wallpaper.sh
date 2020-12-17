@@ -131,7 +131,8 @@ fi
 
 for p in "${urls[@]}"; do
     if [ -z "$FILENAME" ]; then
-        filename=$(echo "$p" | sed -e 's/.*[?&;]id=\([^&]*\).*/\1/' | grep -oe '[^\.]*\.[^\.]*$')
+        # Extract OHR.ElbeBastei_EN-GB1140600783_1920x1080.jpg from id. Strip `OHR.` then strip culture
+        filename=$(echo "$p" | sed -e 's/.*[?&;]id=\([^&]*\).*/\1/' -e 's/^[^\.]*\.//' -e 's/_.*_/_/')
     else
         filename="$FILENAME"
     fi
