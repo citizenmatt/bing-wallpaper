@@ -108,14 +108,14 @@ mkdir -p "${PICTURE_DIR}"
 read -ra urls < <(curl -sL $PROTO://www.bing.com | \
     grep -Eo "url\(/th.*?\)" | \
     uniq | \
-    sed -e "s/url(\([^']*\)).*/http:\/\/bing.com\1/" | \
+    sed -e "s/url(\([^']*\)).*/$PROTO:\/\/bing.com\1/" | \
     transform_urls)
 
 if [ -n "$BOOST" ]; then
     # Skip idx=0, we've just retrieved that URL above
     read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$BOOST&idx=1" | \
         grep -Eo "url\":\".*?\"" | \
-        sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
+        sed -e "s/url\":\"\([^\"]*\).*/$PROTO:\/\/bing.com\1/" | \
         transform_urls)
     urls=( "${urls[@]}" "${archiveUrls[@]}" )
 fi
