@@ -111,38 +111,31 @@ done
 # Create picture directory if it doesn't already exist
 mkdir -p "${PICTURE_DIR}"
 
-# Parse bing.com and acquire picture URL(s)
+if [ -z "$BOOST" ]; then
+    BOOST=1
+fi
+
+if [ $BOOST -gt $MAX_BOOST ]; then
+    echo "Fetching max of $MAX_BOOST items..."
+    BOOST=$MAX_BOOST
+fi
+
 if [ ! -z "$MARKET" ]; then
-    MKT_PARAM="?mkt=$MARKET"
+    MKT_PARAM="&mkt=$MARKET"
 fi
 
-read -ra urls < <(curl -sL $PROTO://www.bing.com/$MKT_PARAM | \
-    grep -Eo "url\(/th.*?\)" | \
-    uniq | \
-    sed -e "s/url(\([^']*\)).*/$PROTO:\/\/bing.com\1/" | \
-    transform_urls)
-
-if [ -n "$BOOST" ]; then
-    if [ $BOOST -gt $MAX_BOOST ]; then
-        echo "Fetching max of $MAX_BOOST items..."
-        BOOST=$MAX_BOOST
-    fi
-    IDX=1 # IDX=0 returns URLs starting at the one we've just retrieved above
-    if [ ! -z "$MARKET" ]; then
-        MKT_PARAM="&mkt=$MARKET"
-    fi
-    while [ $BOOST -gt 0 ]
-    do
-        FETCH=$((BOOST<PAGE_SIZE ? BOOST : PAGE_SIZE))
-        read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$FETCH&idx=$IDX$MKT_PARAM" | \
-            grep -Eo "url\":\".*?\"" | \
-            sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
-            transform_urls)
-        urls=( "${urls[@]}" "${archiveUrls[@]}" )
-        BOOST=$(($BOOST - $PAGE_SIZE))
-        IDX=$((IDX+PAGE_SIZE))
-    done
-fi
+IDX=0
+while [ $BOOST -gt 0 ]
+do
+    FETCH=$((BOOST<PAGE_SIZE ? BOOST : PAGE_SIZE))
+    read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$FETCH&idx=$IDX$MKT_PARAM" | \
+        grep -Eo "url\":\".*?\"" | \
+        sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
+        transform_urls)
+    urls=( "${urls[@]}" "${archiveUrls[@]}" )
+    BOOST=$(($BOOST - $PAGE_SIZE))
+    IDX=$((IDX+PAGE_SIZE))
+done
 
 for p in "${urls[@]}"; do
     if [ -z "$FILENAME" ]; then
