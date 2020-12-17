@@ -44,6 +44,41 @@ transform_urls() {
         tr "\n" " "
 }
 
+fetch_pictures() {
+    if [ ! -z "$1" ]; then
+        loc_mkt_param="&mkt=$1"
+    fi
+
+    local loc_idx=0
+    local loc_boost=$BOOST
+    while [ $loc_boost -gt 0 ]
+    do
+        local loc_fetch=$((loc_boost<PAGE_SIZE ? loc_boost : PAGE_SIZE))
+        read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$loc_fetch&idx=$loc_idx$loc_mkt_param" | \
+            grep -Eo "url\":\".*?\"" | \
+            sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
+            transform_urls)
+        urls=( "${urls[@]}" "${archiveUrls[@]}" )
+        loc_boost=$((loc_boost-PAGE_SIZE))
+        loc_idx=$((loc_idx+PAGE_SIZE))
+    done
+
+    for p in "${urls[@]}"; do
+        if [ -z "$FILENAME" ]; then
+            # Extract OHR.ElbeBastei_EN-GB1140600783_1920x1080.jpg from id. Strip `OHR.` then strip culture
+            filename=$(echo "$p" | sed -e 's/.*[?&;]id=\([^&]*\).*/\1/' -e 's/^[^\.]*\.//' -e 's/_.*_/_/')
+        else
+            filename="$FILENAME"
+        fi
+        if [ -n "$FORCE" ] || [ ! -f "$PICTURE_DIR/$filename" ]; then
+            print_message "Downloading: $filename..."
+            curl $CURL_QUIET -Lo "$PICTURE_DIR/$filename" "$p"
+        else
+            print_message "Skipping: $filename..."
+        fi
+    done
+}
+
 # Defaults
 PICTURE_DIR="$HOME/Pictures/bing-wallpapers/"
 RESOLUTION="1920x1080"
@@ -120,37 +155,7 @@ if [ $BOOST -gt $MAX_BOOST ]; then
     BOOST=$MAX_BOOST
 fi
 
-if [ ! -z "$MARKET" ]; then
-    MKT_PARAM="&mkt=$MARKET"
-fi
-
-IDX=0
-while [ $BOOST -gt 0 ]
-do
-    FETCH=$((BOOST<PAGE_SIZE ? BOOST : PAGE_SIZE))
-    read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$FETCH&idx=$IDX$MKT_PARAM" | \
-        grep -Eo "url\":\".*?\"" | \
-        sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
-        transform_urls)
-    urls=( "${urls[@]}" "${archiveUrls[@]}" )
-    BOOST=$(($BOOST - $PAGE_SIZE))
-    IDX=$((IDX+PAGE_SIZE))
-done
-
-for p in "${urls[@]}"; do
-    if [ -z "$FILENAME" ]; then
-        # Extract OHR.ElbeBastei_EN-GB1140600783_1920x1080.jpg from id. Strip `OHR.` then strip culture
-        filename=$(echo "$p" | sed -e 's/.*[?&;]id=\([^&]*\).*/\1/' -e 's/^[^\.]*\.//' -e 's/_.*_/_/')
-    else
-        filename="$FILENAME"
-    fi
-    if [ -n "$FORCE" ] || [ ! -f "$PICTURE_DIR/$filename" ]; then
-        print_message "Downloading: $filename..."
-        curl $CURL_QUIET -Lo "$PICTURE_DIR/$filename" "$p"
-    else
-        print_message "Skipping: $filename..."
-    fi
-done
+fetch_pictures "$MARKET"
 
 if [ -n "$SET_WALLPAPER" ]; then
     /usr/bin/osascript<<END
