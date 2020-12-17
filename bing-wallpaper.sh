@@ -61,9 +61,13 @@ fetch_urls() {
         local loc_fetch=$((loc_boost<PAGE_SIZE ? loc_boost : PAGE_SIZE))
         read -ra archiveUrls < <(curl -sL "$PROTO://www.bing.com/HPImageArchive.aspx?format=js&n=$loc_fetch&idx=$loc_idx$loc_mkt_param" | \
             grep -Eo "url\":\".*?\"" | \
-            sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" | \
-            transform_urls)
-        urls=( "${urls[@]}" "${archiveUrls[@]}" )
+            sed -e "s/url\":\"\([^\"]*\).*/http:\/\/bing.com\1/" -e "s/\\\//g" -e "s/[[:digit:]]\{1,\}x[[:digit:]]\{1,\}/$RESOLUTION/" | \
+            tr "\n" " ")
+        for u in ${archiveUrls[@]}; do
+            # Extract OHR.ElbeBastei_EN-GB1140600783_1920x1080.jpg from id. Strip `OHR.` then strip culture
+            key=$(echo "$u" | sed -e 's/.*[?&;]id=\([^&]*\).*/\1/' -e 's/^[^\.]*\.//' -e 's/_.*_/_/')
+            urls[$key]=$u
+        done
         loc_boost=$((loc_boost-PAGE_SIZE))
         loc_idx=$((loc_idx+PAGE_SIZE))
     done
@@ -143,6 +147,7 @@ if [ $BOOST -gt $MAX_BOOST ]; then
     BOOST=$MAX_BOOST
 fi
 
+declare -A urls
 if [ "$MARKET" == "all" ]; then
     for m in "${ALL_MARKETS[@]}"; do
         fetch_urls $m
@@ -151,16 +156,16 @@ else
     fetch_urls "$MARKET"
 fi
 
-for p in "${urls[@]}"; do
+for p in "${!urls[@]}"; do
+    u=${urls[$p]}
     if [ -z "$FILENAME" ]; then
-        # Extract OHR.ElbeBastei_EN-GB1140600783_1920x1080.jpg from id. Strip `OHR.` then strip culture
-        filename=$(echo "$p" | sed -e 's/.*[?&;]id=\([^&]*\).*/\1/' -e 's/^[^\.]*\.//' -e 's/_.*_/_/')
+        filename="$p"
     else
         filename="$FILENAME"
     fi
     if [ -n "$FORCE" ] || [ ! -f "$PICTURE_DIR/$filename" ]; then
         print_message "Downloading: $filename..."
-        curl $CURL_QUIET -Lo "$PICTURE_DIR/$filename" "$p"
+        curl $CURL_QUIET -Lo "$PICTURE_DIR/$filename" "$u"
     else
         print_message "Skipping: $filename..."
     fi
